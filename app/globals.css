@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* Tailwind v4 class-based dark mode (the .dark class is set on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark body {
+  background-color: #0a0e1a;
+  color: #e2e8f0;
+}
+
+/* Visible focus for keyboard users everywhere. */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip link: hidden until focused. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  border-radius: 0.5rem;
+  background-color: #4f46e5;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  transition: top 120ms ease;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/* Thin scrollbars for the kanban lanes. */
+.lane-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+}
+
+.lane-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lane-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.5);
+  border-radius: 9999px;
+}
+
+/* Respect reduced-motion at the CSS level too (Framer Motion checks its own). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
