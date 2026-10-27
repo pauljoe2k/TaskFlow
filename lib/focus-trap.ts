@@ -9,8 +9,22 @@ const FOCUSABLE_SELECTOR = [
 
 export function getFocusable(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => element.offsetParent !== null || element === document.activeElement,
+    (element) => isVisible(element),
   );
+}
+
+function isVisible(element: HTMLElement): boolean {
+  if (element.hasAttribute("disabled")) return false;
+  if (element.closest("[hidden]") !== null) return false;
+  const window = element.ownerDocument.defaultView;
+  const style = window ? window.getComputedStyle(element) : null;
+  if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+  // `offsetParent` is null for display:none elements in real browsers, but
+  // jsdom has no layout at all — only trust it once the document has real
+  // layout boxes (body has client rects).
+  const hasLayout = (element.ownerDocument.body?.getClientRects().length ?? 0) > 0;
+  if (hasLayout && element.offsetParent === null && style?.position !== "fixed") return false;
+  return true;
 }
 
 /**

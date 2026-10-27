@@ -164,7 +164,7 @@ export function Toolbar({ criteria, onCriteriaChange, onOpenPalette }: ToolbarPr
             title="Command palette (Ctrl/Cmd+K)"
           >
             <IconCommand />
-            <span className="hidden text-xs text-slate-400 sm:inline">⌘K</span>
+            <span className="hidden text-xs text-slate-500 dark:text-slate-400 sm:inline">⌘K</span>
           </button>
         </div>
       </div>

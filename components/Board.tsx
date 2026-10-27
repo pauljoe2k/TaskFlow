@@ -9,19 +9,61 @@ import {
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useState } from "react";
 import { BoardColumn } from "@/components/Column";
 import { CardFace } from "@/components/CardItem";
 import { IconPlus } from "@/components/icons";
-import { type FilterCriteria, computeNothing } from "@/lib/filter";
+import type { FilterCriteria } from "@/lib/filter";
 import { computeTargetIndex, toFinalIndex } from "@/lib/reorder";
 import { selectActiveBoard, useTaskFlowStore } from "@/store/taskflow-store";
 import type { Place } from "@/types/schema";
 
 /** Droppable id prefix for the body of a column (empty-area drops). */
 export const COLUMN_DROP_PREFIX = "column-drop:";
+
+/**
+ * Wraps `sortableKeyboardCoordinates` to repair the drag origin before its
+ * direction filtering runs. dnd-kit measures the draggable *before* the drag
+ * begins — a moment when Framer Motion may still be animating a previous
+ * layout change. Framer writes functional transform strings, which dnd-kit's
+ * `ignoreTransform` (matrix-only) does not strip, so the origin rect can end
+ * up a few pixels off while the droppable rects (measured after the drag
+ * starts) stay accurate. While the collision rect still sits exactly at its
+ * own origin, anchor it to the card's droppable rect. Without this, the first
+ * ArrowLeft/ArrowRight after lifting can match same-column cards as
+ * "neighbouring" ones and arrow the drag sideways instead of across columns.
+ */
+const keyboardCoordinateGetter: KeyboardCoordinateGetter = (event, args) => {
+  const context = args.context;
+  const { active, collisionRect, droppableRects } = context;
+  if (active && collisionRect) {
+    const initial = active.rect.current.initial;
+    const atOrigin =
+      initial != null &&
+      Math.abs(collisionRect.left - initial.left) < 0.5 &&
+      Math.abs(collisionRect.top - initial.top) < 0.5;
+    const nodeRect = atOrigin ? droppableRects.get(active.id) : undefined;
+    if (nodeRect) {
+      const anchored = {
+        ...collisionRect,
+        left: nodeRect.left,
+        top: nodeRect.top,
+        width: nodeRect.width,
+        height: nodeRect.height,
+        right: nodeRect.left + nodeRect.width,
+        bottom: nodeRect.top + nodeRect.height,
+      };
+      return sortableKeyboardCoordinates(event, {
+        ...args,
+        context: { ...context, collisionRect: anchored },
+      });
+    }
+  }
+  return sortableKeyboardCoordinates(event, args);
+};
 
 interface BoardProps {
   criteria: FilterCriteria;
@@ -50,7 +92,7 @@ export function Board({ criteria, onEditCard, onCreateCard }: BoardProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinateGetter }),
   );
 
   if (!board) return null;
@@ -121,11 +163,22 @@ export function Board({ criteria, onEditCard, onCreateCard }: BoardProps) {
 
     let insertAfter = false;
     if (overCardId) {
-      const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+      const { initial, translated } = active.rect.current;
+      const activeRect = translated ?? initial;
       if (activeRect && over.rect.height > 0) {
-        const activeCenter = activeRect.top + activeRect.height / 2;
-        const overCenter = over.rect.top + over.rect.height / 2;
-        insertAfter = activeCenter > overCenter;
+        // Keyboard drags snap the card's top edge exactly onto the target
+        // slot, so the center comparison below would be decided by card
+        // heights alone. In that case use the drag direction instead:
+        // moved down -> insert after the over card, moved up -> before.
+        const snappedOntoSlot =
+          initial != null && Math.abs(activeRect.top - over.rect.top) <= 2;
+        if (snappedOntoSlot) {
+          insertAfter = activeRect.top > initial.top;
+        } else {
+          const activeCenter = activeRect.top + activeRect.height / 2;
+          const overCenter = over.rect.top + over.rect.height / 2;
+          insertAfter = activeCenter > overCenter;
+        }
       }
     }
 
@@ -226,7 +279,7 @@ export function Board({ criteria, onEditCard, onCreateCard }: BoardProps) {
         </div>
       </section>
 
-      <DragOverlay dropAnimation={{ duration: 160, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+      <DragOverlay dropAnimation={null}>
         {activeCard ? (
           <div className="rotate-2 cursor-grabbing opacity-95 shadow-2xl">
             <CardFace card={activeCard} labels={board.labels} />
